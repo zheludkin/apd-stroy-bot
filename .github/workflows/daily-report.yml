@@ -1,0 +1,14 @@
+name: Daily leads report
+
+on:
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  trigger-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call daily report endpoint
+        run: |
+          curl -sf "https://apd-stroy-bot.onrender.com/cron/daily-report?secret=${{ secrets.CRON_SECRET }}"
