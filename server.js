@@ -5,6 +5,7 @@ const { Telegraf, Scenes, session, Markup } = require('telegraf');
 
 const leadForm = require('./scenes/leadForm');
 const { sendDailyReport } = require('./lib/report');
+const { sendBackupToTelegram } = require('./lib/backup');
 const { PROJECTS } = require('./lib/projects');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -91,6 +92,9 @@ app.get('/cron/daily-report', async (req, res) => {
   }
   try {
     const result = await sendDailyReport(bot);
+    await sendBackupToTelegram(bot).catch((err) =>
+      console.error('Ошибка отправки резервного файла:', err.message)
+    );
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('Ошибка формирования ежедневного отчёта:', err.message);
