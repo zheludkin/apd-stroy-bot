@@ -4,6 +4,7 @@ const express = require('express');
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 
 const leadForm = require('./scenes/leadForm');
+const smetaWizard = require('./scenes/smetaWizard');
 const { sendDailyReport } = require('./lib/report');
 const { sendBackupToTelegram } = require('./lib/backup');
 const { PROJECTS } = require('./lib/projects');
@@ -14,7 +15,7 @@ if (!BOT_TOKEN) {
 }
 
 const bot = new Telegraf(BOT_TOKEN);
-const stage = new Scenes.Stage([leadForm]);
+const stage = new Scenes.Stage([leadForm, smetaWizard]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -71,6 +72,11 @@ bot.action('catalog', async (ctx) => {
 bot.action('apply', async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.scene.enter('lead-form');
+});
+
+bot.command('smeta', async (ctx) => {
+  const modelArg = ctx.message.text.split(' ').slice(1).join(' ').trim();
+  await ctx.scene.enter('smeta-wizard', { modelArg });
 });
 
 bot.catch((err, ctx) => {
