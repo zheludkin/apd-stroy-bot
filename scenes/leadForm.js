@@ -1,11 +1,27 @@
 const { Scenes, Markup } = require('telegraf');
 const { appendLead } = require('../lib/sheets');
 const { APPLY_PROJECT_OPTIONS, CALL_TIME_OPTIONS } = require('../lib/projects');
+const { requireConsent } = require('../lib/consent');
 
 const leadForm = new Scenes.WizardScene(
   'lead-form',
   async (ctx) => {
     ctx.wizard.state.lead = { project: ctx.scene.state?.project || '' };
+    await requireConsent(ctx);
+    return ctx.wizard.next();
+  },
+  async (ctx) => {
+    const data = ctx.callbackQuery?.data;
+    if (data === 'consent:no') {
+      await ctx.answerCbQuery();
+      await ctx.reply('Хорошо, заявку не оставляем. Если передумаете — просто начните заново.');
+      return ctx.scene.leave();
+    }
+    if (data !== 'consent:yes') {
+      await ctx.reply('Пожалуйста, нажмите «Даю согласие ✅», чтобы продолжить, или «Отмена».');
+      return;
+    }
+    await ctx.answerCbQuery();
     await ctx.reply('Как к вам обращаться? Напишите, пожалуйста, ваше имя.');
     return ctx.wizard.next();
   },
