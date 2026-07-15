@@ -92,46 +92,6 @@ app.get('/', (req, res) => res.send('АПД Строй бот работает')
 const WEBHOOK_PATH = `/telegraf/${BOT_TOKEN}`;
 app.use(bot.webhookCallback(WEBHOOK_PATH));
 
-app.get('/debug/db-only', async (req, res) => {
-  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
-    return res.status(403).send('Forbidden');
-  }
-  const { getTodaysLeadRows } = require('./lib/db');
-  const start = Date.now();
-  try {
-    const rows = await getTodaysLeadRows();
-    res.json({ ok: true, ms: Date.now() - start, count: rows.length });
-  } catch (err) {
-    res.status(500).json({ ok: false, ms: Date.now() - start, error: err.message });
-  }
-});
-
-app.get('/debug/backup-only', async (req, res) => {
-  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
-    return res.status(403).send('Forbidden');
-  }
-  const start = Date.now();
-  try {
-    await sendBackupToTelegram(bot);
-    res.json({ ok: true, ms: Date.now() - start });
-  } catch (err) {
-    res.status(500).json({ ok: false, ms: Date.now() - start, error: err.message });
-  }
-});
-
-app.get('/debug/report-only', async (req, res) => {
-  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
-    return res.status(403).send('Forbidden');
-  }
-  const start = Date.now();
-  try {
-    const result = await sendDailyReport(bot);
-    res.json({ ok: true, ms: Date.now() - start, ...result });
-  } catch (err) {
-    res.status(500).json({ ok: false, ms: Date.now() - start, error: err.message });
-  }
-});
-
 app.get('/cron/daily-report', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
