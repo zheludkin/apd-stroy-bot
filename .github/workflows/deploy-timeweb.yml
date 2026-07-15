@@ -1,0 +1,17 @@
+name: Deploy to Timeweb Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Timeweb Cloud deploy
+        run: |
+          curl -sf -X POST "https://api.timeweb.cloud/api/v1/apps/223431/deploy" \
+            -H "Authorization: Bearer ${{ secrets.TIMEWEB_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commit_sha\": \"${{ github.sha }}\"}"
