@@ -106,6 +106,32 @@ app.get('/debug/db-only', async (req, res) => {
   }
 });
 
+app.get('/debug/backup-only', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+  const start = Date.now();
+  try {
+    await sendBackupToTelegram(bot);
+    res.json({ ok: true, ms: Date.now() - start });
+  } catch (err) {
+    res.status(500).json({ ok: false, ms: Date.now() - start, error: err.message });
+  }
+});
+
+app.get('/debug/report-only', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+  const start = Date.now();
+  try {
+    const result = await sendDailyReport(bot);
+    res.json({ ok: true, ms: Date.now() - start, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, ms: Date.now() - start, error: err.message });
+  }
+});
+
 app.get('/cron/daily-report', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
