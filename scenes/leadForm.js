@@ -1,5 +1,5 @@
 const { Scenes, Markup } = require('telegraf');
-const { appendLead } = require('../lib/sheets');
+const { appendLead } = require('../lib/db');
 const { APPLY_PROJECT_OPTIONS, CALL_TIME_OPTIONS } = require('../lib/projects');
 const { requireConsent } = require('../lib/consent');
 

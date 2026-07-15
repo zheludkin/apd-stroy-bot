@@ -15,6 +15,7 @@
     "google-spreadsheet": "^4.1.4",
     "nodemailer": "^6.9.14",
     "pdfkit": "^0.19.1",
+    "pg": "^8.22.0",
     "telegraf": "^4.16.3"
   }
 }
