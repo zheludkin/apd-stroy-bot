@@ -11,4 +11,4 @@ jobs:
     steps:
       - name: Call daily report endpoint
         run: |
-          curl -sf "https://apd-stroy-bot.onrender.com/cron/daily-report?secret=${{ secrets.CRON_SECRET }}"
+          curl -sf "https://zheludkin-apd-stroy-bot-ce16.twc1.net/cron/daily-report?secret=${{ secrets.CRON_SECRET }}"
