@@ -8,6 +8,8 @@ const smetaWizard = require('./scenes/smetaWizard');
 const { sendDailyReport } = require('./lib/report');
 const { sendBackupToTelegram } = require('./lib/backup');
 const { PROJECTS } = require('./lib/projects');
+const { processDuePosts } = require('./lib/instagramPublish');
+const { upsertStage } = require('./lib/contentPipeline');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -74,6 +76,30 @@ bot.action('apply', async (ctx) => {
   await ctx.scene.enter('lead-form');
 });
 
+bot.action(/^pipeline_approve:(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery('Принято, поставлю в очередь публикации');
+  const reelSlug = ctx.match[1];
+  try {
+    await upsertStage(reelSlug, 'approved');
+    await ctx.reply(`✅ «${reelSlug}» одобрен — будет поставлен в очередь публикации при следующей проверке.`);
+  } catch (err) {
+    console.error('Ошибка одобрения ролика:', err.message);
+    await ctx.reply('Не получилось сохранить решение, попробуйте ещё раз.');
+  }
+});
+
+bot.action(/^pipeline_reject:(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery('Отмечено, публиковать не будем');
+  const reelSlug = ctx.match[1];
+  try {
+    await upsertStage(reelSlug, 'rejected');
+    await ctx.reply(`❌ «${reelSlug}» отклонён — не будет опубликован автоматически, разберём вручную.`);
+  } catch (err) {
+    console.error('Ошибка отклонения ролика:', err.message);
+    await ctx.reply('Не получилось сохранить решение, попробуйте ещё раз.');
+  }
+});
+
 bot.command('smeta', async (ctx) => {
   const modelArg = ctx.message.text.split(' ').slice(1).join(' ').trim();
   await ctx.scene.enter('smeta-wizard', { modelArg });
@@ -104,6 +130,19 @@ app.get('/cron/daily-report', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (err) {
     console.error('Ошибка формирования ежедневного отчёта:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/cron/scheduled-publish', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+  try {
+    const results = await processDuePosts(bot);
+    res.json({ ok: true, results });
+  } catch (err) {
+    console.error('Ошибка автопубликации:', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 });

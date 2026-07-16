@@ -1,0 +1,14 @@
+name: Scheduled Instagram publish
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  trigger-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call scheduled-publish endpoint
+        run: |
+          curl -sf "https://zheludkin-apd-stroy-bot-ce16.twc1.net/cron/scheduled-publish?secret=${{ secrets.CRON_SECRET }}"
