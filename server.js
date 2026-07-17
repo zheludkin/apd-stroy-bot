@@ -10,6 +10,7 @@ const { sendBackupToTelegram } = require('./lib/backup');
 const { PROJECTS } = require('./lib/projects');
 const { processDuePosts } = require('./lib/instagramPublish');
 const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublish');
+const { processDuePosts: processDueVkPosts } = require('./lib/vkPublish');
 const { upsertStage } = require('./lib/contentPipeline');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -154,6 +155,13 @@ app.get('/cron/scheduled-publish', async (req, res) => {
     hadError = true;
     console.error('Ошибка автопубликации (YouTube):', err.message);
     results.push({ platform: 'youtube', ok: false, error: err.message });
+  }
+  try {
+    results.push(...(await processDueVkPosts(bot)));
+  } catch (err) {
+    hadError = true;
+    console.error('Ошибка автопубликации (VK):', err.message);
+    results.push({ platform: 'vk', ok: false, error: err.message });
   }
   res.status(hadError ? 500 : 200).json({ ok: !hadError, results });
 });
