@@ -12,6 +12,7 @@ const { processDuePosts } = require('./lib/instagramPublish');
 const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublish');
 const { processDuePosts: processDueVkPosts } = require('./lib/vkPublish');
 const { upsertStage } = require('./lib/contentPipeline');
+const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -162,6 +163,13 @@ app.get('/cron/scheduled-publish', async (req, res) => {
     hadError = true;
     console.error('Ошибка автопубликации (VK):', err.message);
     results.push({ platform: 'vk', ok: false, error: err.message });
+  }
+  try {
+    results.push(...(await sendDueDeleteReminders(bot, 'instagram')));
+  } catch (err) {
+    hadError = true;
+    console.error('Ошибка напоминаний об удалении (Instagram):', err.message);
+    results.push({ platform: 'instagram', task: 'delete-reminder', ok: false, error: err.message });
   }
   res.status(hadError ? 500 : 200).json({ ok: !hadError, results });
 });
