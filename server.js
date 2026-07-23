@@ -11,8 +11,66 @@ const { PROJECTS } = require('./lib/projects');
 const { processDuePosts } = require('./lib/instagramPublish');
 const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublish');
 const { processDuePosts: processDueVkPosts } = require('./lib/vkPublish');
-const { upsertStage, getByTelegramMessage, getAwaitingReview } = require('./lib/contentPipeline');
+const { upsertStage, getByTelegramMessage, getAwaitingReview, getPipelineRow } = require('./lib/contentPipeline');
 const { sendDueDeleteReminders } = require('./lib/deleteReminders');
+const {
+  enqueuePost,
+  getNextTueThuSlot,
+  getNextMonFriSlot,
+  getNextMonWedFriSlot,
+  getNextInstagramRiskyTrackSlot,
+  getNextFreeSlot,
+} = require('./lib/scheduledPosts');
+
+function formatPermTime(date) {
+  return (
+    date.toLocaleString('ru-RU', {
+      timeZone: 'Asia/Yekaterinburg', // UTC+5, совпадает с Пермью
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }) + ' (Пермь)'
+  );
+}
+
+// Определяет каденс по platform+content_track ролика и сразу ставит его в
+// scheduled_posts — раньше это одобрение только меняло stage, а реальная
+// постановка в график делалась вручную отдельным скриптом (жалоба
+// пользователя 23.07.2026: после нажатия кнопки не было видно, что ролик
+// реально встал в график).
+async function approveAndSchedule(row) {
+  if (!row.video_url) {
+    throw new Error('В content_pipeline нет video_url для ' + row.reel_slug);
+  }
+  const caption = row.notes || '';
+
+  let scheduledAt;
+  if (row.platform === 'instagram' && row.content_track === 'active_cta') {
+    scheduledAt = await getNextInstagramRiskyTrackSlot();
+  } else if (row.platform === 'instagram') {
+    scheduledAt = await getNextTueThuSlot();
+  } else if (row.platform === 'youtube') {
+    scheduledAt = await getNextMonFriSlot();
+  } else if (row.platform === 'vk') {
+    scheduledAt = await getNextMonWedFriSlot();
+  } else {
+    scheduledAt = await getNextFreeSlot();
+  }
+
+  await enqueuePost({
+    reelSlug: row.reel_slug,
+    videoUrl: row.video_url,
+    caption,
+    scheduledAt,
+    platform: row.platform,
+    contentTrack: row.content_track,
+  });
+  await upsertStage(row.reel_slug, 'approved', { platform: row.platform });
+
+  return scheduledAt;
+}
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -80,14 +138,16 @@ bot.action('apply', async (ctx) => {
 });
 
 bot.action(/^pipeline_approve:(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery('Принято, поставлю в очередь публикации');
+  await ctx.answerCbQuery('Принято, ставлю в график');
   const reelSlug = ctx.match[1];
   try {
-    await upsertStage(reelSlug, 'approved');
-    await ctx.reply(`✅ «${reelSlug}» одобрен — будет поставлен в очередь публикации при следующей проверке.`);
+    const row = await getPipelineRow(reelSlug);
+    if (!row) throw new Error('Не найден ролик в content_pipeline: ' + reelSlug);
+    const scheduledAt = await approveAndSchedule(row);
+    await ctx.reply(`✅ «${reelSlug}» одобрен и поставлен в график — публикация ${formatPermTime(scheduledAt)}.`);
   } catch (err) {
     console.error('Ошибка одобрения ролика:', err.message);
-    await ctx.reply('Не получилось сохранить решение, попробуйте ещё раз.');
+    await ctx.reply('Не получилось поставить ролик в график: ' + err.message);
   }
 });
 
@@ -147,15 +207,16 @@ bot.on('text', async (ctx, next) => {
       return;
     }
 
-    await upsertStage(row.reel_slug, decision);
-    await ctx.reply(
-      decision === 'approved'
-        ? `✅ «${row.reel_slug}» одобрен — будет поставлен в очередь публикации при следующей проверке.`
-        : `❌ «${row.reel_slug}» отклонён — не будет опубликован автоматически, разберём вручную.`
-    );
+    if (decision === 'approved') {
+      const scheduledAt = await approveAndSchedule(row);
+      await ctx.reply(`✅ «${row.reel_slug}» одобрен и поставлен в график — публикация ${formatPermTime(scheduledAt)}.`);
+    } else {
+      await upsertStage(row.reel_slug, 'rejected');
+      await ctx.reply(`❌ «${row.reel_slug}» отклонён — не будет опубликован автоматически, разберём вручную.`);
+    }
   } catch (err) {
     console.error('Ошибка текстового одобрения/отклонения:', err.message);
-    await ctx.reply('Не получилось сохранить решение, попробуйте ещё раз.');
+    await ctx.reply('Не получилось сохранить решение: ' + err.message);
   }
 });
 
