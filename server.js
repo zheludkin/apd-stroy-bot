@@ -11,7 +11,7 @@ const { PROJECTS } = require('./lib/projects');
 const { processDuePosts } = require('./lib/instagramPublish');
 const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublish');
 const { processDuePosts: processDueVkPosts } = require('./lib/vkPublish');
-const { upsertStage } = require('./lib/contentPipeline');
+const { upsertStage, getByTelegramMessage, getAwaitingReview } = require('./lib/contentPipeline');
 const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -99,6 +99,62 @@ bot.action(/^pipeline_reject:(.+)$/, async (ctx) => {
     await ctx.reply(`❌ «${reelSlug}» отклонён — не будет опубликован автоматически, разберём вручную.`);
   } catch (err) {
     console.error('Ошибка отклонения ролика:', err.message);
+    await ctx.reply('Не получилось сохранить решение, попробуйте ещё раз.');
+  }
+});
+
+// Текстовый fallback для одобрения/отклонения роликов — на случай, если
+// inline-кнопки не срабатывают (жалоба пользователя 23.07.2026). Работает и
+// как ответ (Reply) на конкретное сообщение с видео, и как обычное
+// сообщение, если ждёт решения ровно один ролик.
+const APPROVE_WORDS = ['ок', 'окей', 'ok', 'да', 'одобряю', 'одобрить', 'approve'];
+const REJECT_WORDS = ['отмена', 'отклонить', 'отклоняю', 'нет', 'cancel', 'reject'];
+
+function decisionFromText(text) {
+  const t = (text || '').trim().toLowerCase();
+  if (APPROVE_WORDS.includes(t)) return 'approved';
+  if (REJECT_WORDS.includes(t)) return 'rejected';
+  return null;
+}
+
+bot.on('text', async (ctx, next) => {
+  const decision = decisionFromText(ctx.message.text);
+  if (!decision) return next();
+
+  try {
+    let row = null;
+    const replyTo = ctx.message.reply_to_message;
+    if (replyTo) {
+      row = await getByTelegramMessage(String(ctx.chat.id), String(replyTo.message_id));
+    }
+    if (!row) {
+      const pending = await getAwaitingReview(ctx.chat.id);
+      if (pending.length === 1) {
+        row = pending[0];
+      } else if (pending.length > 1) {
+        const list = pending.map((p) => `• ${p.reel_slug}`).join('\n');
+        await ctx.reply(
+          `Ждут решения сразу несколько роликов, не понимаю, к какому это относится:\n${list}\n\nОтветьте (Reply) прямо на сообщение с нужным видео словом «ок» или «отмена».`
+        );
+        return;
+      }
+    }
+    if (!row) {
+      return next();
+    }
+    if (row.stage !== 'awaiting_review') {
+      await ctx.reply(`«${row.reel_slug}» уже в статусе «${row.stage}», ничего не меняю.`);
+      return;
+    }
+
+    await upsertStage(row.reel_slug, decision);
+    await ctx.reply(
+      decision === 'approved'
+        ? `✅ «${row.reel_slug}» одобрен — будет поставлен в очередь публикации при следующей проверке.`
+        : `❌ «${row.reel_slug}» отклонён — не будет опубликован автоматически, разберём вручную.`
+    );
+  } catch (err) {
+    console.error('Ошибка текстового одобрения/отклонения:', err.message);
     await ctx.reply('Не получилось сохранить решение, попробуйте ещё раз.');
   }
 });
