@@ -20,6 +20,7 @@ const {
   getNextMonWedFriSlot,
   getNextInstagramRiskyTrackSlot,
   getNextFreeSlot,
+  getActiveScheduleForReel,
 } = require('./lib/scheduledPosts');
 
 function formatPermTime(date) {
@@ -44,6 +45,13 @@ async function approveAndSchedule(row) {
   if (!row.video_url) {
     throw new Error('В content_pipeline нет video_url для ' + row.reel_slug);
   }
+
+  const existing = await getActiveScheduleForReel(row.reel_slug);
+  if (existing) {
+    await upsertStage(row.reel_slug, 'approved', { platform: row.platform });
+    return existing.scheduled_at;
+  }
+
   const caption = row.notes || '';
 
   let scheduledAt;
@@ -67,7 +75,7 @@ async function approveAndSchedule(row) {
     platform: row.platform,
     contentTrack: row.content_track,
   });
-  await upsertStage(row.reel_slug, 'approved', { platform: row.platform });
+  await upsertStage(row.reel_slug, 'scheduled', { platform: row.platform });
 
   return scheduledAt;
 }
