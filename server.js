@@ -246,16 +246,31 @@ app.get('/', (req, res) => res.send('АПД Строй бот работает')
 const WEBHOOK_PATH = `/telegraf/${BOT_TOKEN}`;
 app.use(bot.webhookCallback(WEBHOOK_PATH));
 
+// Бэкап отправляется раз в 3 дня (решение пользователя 30.07.2026), заявки — каждый день.
+// Точка отсчёта — 2026-07-30, привязка к дню года без хранения состояния между запусками.
+function isBackupDueToday() {
+  const now = new Date();
+  const startOfYear = Date.UTC(now.getUTCFullYear(), 0, 1);
+  const dayOfYear = Math.floor((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - startOfYear) / 86400000);
+  return dayOfYear % 3 === 0;
+}
+
 app.get('/cron/daily-report', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
   }
   try {
     const result = await sendDailyReport(bot);
-    await sendBackupToTelegram(bot).catch((err) =>
-      console.error('Ошибка отправки резервного файла:', err.message)
-    );
-    res.json({ ok: true, ...result });
+    let backup = { sent: false };
+    if (isBackupDueToday()) {
+      backup = await sendBackupToTelegram(bot)
+        .then(() => ({ sent: true }))
+        .catch((err) => {
+          console.error('Ошибка отправки резервного файла:', err.message);
+          return { sent: false, error: err.message };
+        });
+    }
+    res.json({ ok: true, ...result, backup });
   } catch (err) {
     console.error('Ошибка формирования ежедневного отчёта:', err.message);
     res.status(500).json({ ok: false, error: err.message });
