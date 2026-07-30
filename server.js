@@ -15,7 +15,7 @@ const { upsertStage, getByTelegramMessage, getAwaitingReview, getPipelineRow } =
 const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 const {
   enqueuePost,
-  getNextTueThuSlot,
+  getNextDailySlot,
   getNextMonFriSlot,
   getNextMonWedFriSlot,
   getNextInstagramRiskyTrackSlot,
@@ -58,7 +58,7 @@ async function approveAndSchedule(row) {
   if (row.platform === 'instagram' && row.content_track === 'active_cta') {
     scheduledAt = await getNextInstagramRiskyTrackSlot();
   } else if (row.platform === 'instagram') {
-    scheduledAt = await getNextTueThuSlot();
+    scheduledAt = await getNextDailySlot();
   } else if (row.platform === 'youtube') {
     scheduledAt = await getNextMonFriSlot();
   } else if (row.platform === 'vk') {
