@@ -277,34 +277,6 @@ app.get('/cron/daily-report', async (req, res) => {
   }
 });
 
-app.get('/cron/debug-ig', async (req, res) => {
-  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
-    return res.status(403).send('Forbidden');
-  }
-  const attempts = [];
-  const hosts = [
-    'https://graph.instagram.com/v21.0/me?fields=id&access_token=' + process.env.INSTAGRAM_ACCESS_TOKEN,
-    'https://www.google.com',
-    'https://api.telegram.org',
-  ];
-  for (const url of hosts) {
-    const started = Date.now();
-    try {
-      const r = await fetch(url);
-      attempts.push({ url: url.split('?')[0], ok: true, status: r.status, ms: Date.now() - started });
-    } catch (err) {
-      attempts.push({
-        url: url.split('?')[0],
-        ok: false,
-        message: err.message,
-        cause: err.cause ? { code: err.cause.code, message: err.cause.message } : null,
-        ms: Date.now() - started,
-      });
-    }
-  }
-  res.json({ ok: true, attempts });
-});
-
 app.get('/cron/scheduled-publish', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
