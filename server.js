@@ -1,4 +1,9 @@
 require('dotenv').config();
+// Хост не имеет рабочего IPv6 (подтверждено диагностикой: TCP по IPv6 даёт
+// EADDRNOTAVAIL), но DNS для graph.instagram.com/api.telegram.org отдаёт и
+// AAAA-записи — без этой строки fetch() иногда пытается IPv6 первым и висит
+// до connect-таймаута вместо мгновенного успеха по IPv4.
+require('dns').setDefaultResultOrder('ipv4first');
 const fs = require('fs');
 const express = require('express');
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
