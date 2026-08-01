@@ -277,6 +277,52 @@ app.get('/cron/daily-report', async (req, res) => {
   }
 });
 
+app.get('/cron/debug-net', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+  const dns = require('dns').promises;
+  const net = require('net');
+  const out = { dns: {}, tcpConnect: {} };
+
+  for (const host of ['graph.instagram.com', 'api.telegram.org', 'www.google.com']) {
+    try {
+      const v4 = await dns.resolve4(host).catch((e) => `ERR:${e.code}`);
+      const v6 = await dns.resolve6(host).catch((e) => `ERR:${e.code}`);
+      out.dns[host] = { v4, v6 };
+    } catch (e) {
+      out.dns[host] = { error: e.message };
+    }
+  }
+
+  function tcpTest(host, port, family) {
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const socket = net.connect({ host, port, family, timeout: 8000 });
+      socket.on('connect', () => {
+        resolve({ ok: true, ms: Date.now() - started });
+        socket.destroy();
+      });
+      socket.on('timeout', () => {
+        resolve({ ok: false, error: 'timeout', ms: Date.now() - started });
+        socket.destroy();
+      });
+      socket.on('error', (e) => {
+        resolve({ ok: false, error: e.code || e.message, ms: Date.now() - started });
+      });
+    });
+  }
+
+  for (const host of ['graph.instagram.com', 'api.telegram.org']) {
+    out.tcpConnect[host] = {
+      v4: await tcpTest(host, 443, 4),
+      v6: await tcpTest(host, 443, 6),
+    };
+  }
+
+  res.json(out);
+});
+
 app.get('/cron/scheduled-publish', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
