@@ -21,7 +21,7 @@ const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 const {
   enqueuePost,
   getNextDailySlot,
-  getNextMonFriSlot,
+  getNextYoutubeDailySlot,
   getNextMonWedFriSlot,
   getNextInstagramRiskyTrackSlot,
   getNextFreeSlot,
@@ -65,7 +65,7 @@ async function approveAndSchedule(row) {
   } else if (row.platform === 'instagram') {
     scheduledAt = await getNextDailySlot();
   } else if (row.platform === 'youtube') {
-    scheduledAt = await getNextMonFriSlot();
+    scheduledAt = await getNextYoutubeDailySlot();
   } else if (row.platform === 'vk') {
     scheduledAt = await getNextMonWedFriSlot();
   } else {
