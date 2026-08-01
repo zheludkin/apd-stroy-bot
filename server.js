@@ -282,21 +282,6 @@ app.get('/cron/daily-report', async (req, res) => {
   }
 });
 
-app.get('/cron/debug-youtube-auth', async (req, res) => {
-  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
-    return res.status(403).send('Forbidden');
-  }
-  try {
-    const { OAuth2Client } = require('google-auth-library');
-    const client = new OAuth2Client(process.env.YOUTUBE_CLIENT_ID, process.env.YOUTUBE_CLIENT_SECRET);
-    client.setCredentials({ refresh_token: process.env.YOUTUBE_REFRESH_TOKEN });
-    const { token } = await client.getAccessToken();
-    res.json({ ok: true, gotAccessToken: !!token });
-  } catch (err) {
-    res.json({ ok: false, error: err.message });
-  }
-});
-
 app.get('/cron/debug-net', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
