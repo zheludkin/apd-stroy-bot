@@ -10,6 +10,7 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const { processDuePosts } = require('./lib/instagramPublish');
+const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublish');
 const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -25,6 +26,12 @@ function log(...args) {
     log('Instagram:', JSON.stringify(results));
   } catch (e) {
     log('Instagram FAILED:', e.message);
+  }
+  try {
+    const ytResults = await processDueYouTubePosts(bot);
+    log('YouTube:', JSON.stringify(ytResults));
+  } catch (e) {
+    log('YouTube FAILED:', e.message);
   }
   try {
     const reminders = await sendDueDeleteReminders(bot, 'instagram');
