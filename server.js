@@ -367,15 +367,30 @@ app.get('/cron/scheduled-publish', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, async () => {
-  console.log(`АПД Строй бот запущен: порт ${PORT}`);
-
-  const webhookUrl = process.env.WEBHOOK_URL;
-  if (webhookUrl) {
-    await bot.telegram.setWebhook(`${webhookUrl}${WEBHOOK_PATH}`);
-    console.log(`Webhook установлен: ${webhookUrl}${WEBHOOK_PATH}`);
-  } else {
-    console.log('WEBHOOK_URL не задан — бот запущен в режиме long polling.');
-    bot.launch();
+// setWebhook/bot.launch() дёргают api.telegram.org сразу при старте — на
+// нестабильной сети Timeweb (см. память про network-issue) один неудачный
+// запрос (ETIMEDOUT) раньше падал необработанным исключением и валил весь
+// процесс, платформа перезапускала контейнер, который мог упасть на том же
+// месте по кругу. Ретрай с задержкой не даёт транзиентному сбою убить процесс.
+async function startBot(attempt = 1) {
+  try {
+    const webhookUrl = process.env.WEBHOOK_URL;
+    if (webhookUrl) {
+      await bot.telegram.setWebhook(`${webhookUrl}${WEBHOOK_PATH}`);
+      console.log(`Webhook установлен: ${webhookUrl}${WEBHOOK_PATH}`);
+    } else {
+      console.log('WEBHOOK_URL не задан — бот запущен в режиме long polling.');
+      await bot.launch();
+      console.log('Long polling запущен.');
+    }
+  } catch (err) {
+    const delay = Math.min(30000, 2000 * 2 ** (attempt - 1));
+    console.error(`Не удалось запустить бота (попытка ${attempt}): ${err.message}. Повтор через ${delay}мс.`);
+    setTimeout(() => startBot(attempt + 1), delay);
   }
+}
+
+app.listen(PORT, () => {
+  console.log(`АПД Строй бот запущен: порт ${PORT}`);
+  startBot();
 });
