@@ -89,6 +89,21 @@ const leadForm = new Scenes.WizardScene(
 
     try {
       await appendLead({ name, phone, project, callTime, source: 'Telegram-бот' });
+
+      const groupChatId = process.env.TELEGRAM_GROUP_CHAT_ID;
+      if (groupChatId) {
+        await ctx.telegram
+          .sendMessage(
+            groupChatId,
+            `🆕 Новая заявка (Telegram-бот)\n` +
+              `Имя: ${name}\n` +
+              `Телефон: ${phone}\n` +
+              `Проект: ${project || '—'}\n` +
+              `Удобное время звонка: ${callTime || '—'}`
+          )
+          .catch((err) => console.error('Не удалось отправить заявку в группу:', err.message));
+      }
+
       await ctx.reply(
         'Спасибо, менеджер свяжется в течение дня.',
         Markup.inlineKeyboard([[Markup.button.callback('В главное меню', 'menu')]])
