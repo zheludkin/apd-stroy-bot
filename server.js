@@ -124,17 +124,17 @@ bot.start(async (ctx) => {
 });
 
 bot.action('menu', async (ctx) => {
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery().catch(() => {});
   await ctx.reply('Главное меню:', mainMenu);
 });
 
 bot.action('about', async (ctx) => {
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery().catch(() => {});
   await ctx.reply(ABOUT_TEXT, mainMenu);
 });
 
 bot.action('catalog', async (ctx) => {
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery().catch(() => {});
   for (const project of PROJECTS) {
     const caption = `${project.title}\nПлощадь: ${project.area}\nЦена: ${project.price}`;
     await ctx.replyWithMediaGroup([
@@ -152,12 +152,12 @@ bot.action('catalog', async (ctx) => {
 });
 
 bot.action('apply', async (ctx) => {
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery().catch(() => {});
   await ctx.scene.enter('lead-form');
 });
 
 bot.action(/^pipeline_approve:(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery('Принято, ставлю в график');
+  await ctx.answerCbQuery('Принято, ставлю в график').catch(() => {});
   const reelSlug = ctx.match[1];
   try {
     const row = await getPipelineRow(reelSlug);
@@ -171,7 +171,7 @@ bot.action(/^pipeline_approve:(.+)$/, async (ctx) => {
 });
 
 bot.action(/^pipeline_reject:(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery('Отмечено, публиковать не будем');
+  await ctx.answerCbQuery('Отмечено, публиковать не будем').catch(() => {});
   const reelSlug = ctx.match[1];
   try {
     await upsertStage(reelSlug, 'rejected');

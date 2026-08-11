@@ -37,7 +37,7 @@ const smetaWizard = new Scenes.WizardScene(
           const picked = normalizeModelArg(data.slice('smetamodel:'.length));
           if (picked) {
             ctx.wizard.state.smeta.model = picked;
-            await ctx.answerCbQuery();
+            await ctx.answerCbQuery().catch(() => {});
           }
         }
       }

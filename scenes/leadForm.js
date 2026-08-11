@@ -13,7 +13,7 @@ const leadForm = new Scenes.WizardScene(
   async (ctx) => {
     const data = ctx.callbackQuery?.data;
     if (data === 'consent:no') {
-      await ctx.answerCbQuery();
+      await ctx.answerCbQuery().catch(() => {});
       await ctx.reply('Хорошо, заявку не оставляем. Если передумаете — просто начните заново.');
       return ctx.scene.leave();
     }
@@ -21,7 +21,7 @@ const leadForm = new Scenes.WizardScene(
       await ctx.reply('Пожалуйста, нажмите «Даю согласие ✅», чтобы продолжить, или «Отмена».');
       return;
     }
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery().catch(() => {});
     await ctx.reply('Как к вам обращаться? Напишите, пожалуйста, ваше имя.');
     return ctx.wizard.next();
   },
@@ -67,7 +67,7 @@ const leadForm = new Scenes.WizardScene(
       return;
     }
     ctx.wizard.state.lead.project = data.slice('project:'.length);
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery().catch(() => {});
     await ctx.reply(
       'В какое время вам удобно позвонить?',
       Markup.inlineKeyboard(
@@ -83,7 +83,7 @@ const leadForm = new Scenes.WizardScene(
       return;
     }
     ctx.wizard.state.lead.callTime = data.slice('time:'.length);
-    await ctx.answerCbQuery();
+    await ctx.answerCbQuery().catch(() => {});
 
     const { name, phone, project, callTime } = ctx.wizard.state.lead;
 
