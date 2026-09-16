@@ -6,6 +6,7 @@ require('dotenv').config();
 require('dns').setDefaultResultOrder('ipv4first');
 const fs = require('fs');
 const express = require('express');
+const { Pool } = require('pg');
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 
 const leadForm = require('./scenes/leadForm');
@@ -16,6 +17,8 @@ const { PROJECTS } = require('./lib/projects');
 const { processDuePosts } = require('./lib/instagramPublish');
 const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublish');
 const { processDuePosts: processDueVkPosts } = require('./lib/vkPublish');
+const { processDuePosts: processDueTelegramChannelPosts } = require('./lib/telegramChannelPublish');
+const { processDuePosts: processDueOkPosts } = require('./lib/okPublish');
 const { upsertStage, getByTelegramMessage, getAwaitingReview, getPipelineRow } = require('./lib/contentPipeline');
 const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 const {
@@ -266,6 +269,64 @@ function isBackupDueToday() {
   return dayOfYear % 3 === 0;
 }
 
+// Раннее предупреждение о пустой очереди публикаций (16.09.2026, по просьбе
+// пользователя — очередь на всех площадках обнулилась незаметно на 2+ недели).
+// Использует MAX (не Telegram) — тот же рабочий канал, что и apd-stroy-site,
+// т.к. platform-api2.max.ru доступен с Timeweb напрямую, а api.telegram.org —
+// нет (или ненадёжно). Требует NODE_EXTRA_CA_CERTS (см. certs/russian_trusted_ca_bundle.crt).
+const QUEUE_LOW_THRESHOLD = 3;
+const QUEUE_PLATFORMS = ['instagram', 'youtube', 'vk', 'ok', 'telegram_channel'];
+let contentDbPool = null;
+
+function getContentDbPool() {
+  if (!contentDbPool) {
+    contentDbPool = new Pool({ connectionString: process.env.DATABASE_URL });
+  }
+  return contentDbPool;
+}
+
+async function sendMaxAlert(text) {
+  const token = process.env.MAX_BOT_TOKEN;
+  const chatId = process.env.MAX_CHAT_ID;
+  if (!token || !chatId) {
+    throw new Error('MAX_BOT_TOKEN/MAX_CHAT_ID не заданы');
+  }
+  const response = await fetch(`https://platform-api2.max.ru/messages?chat_id=${chatId}`, {
+    method: 'POST',
+    headers: { Authorization: token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    throw new Error(`MAX sendMessage ${response.status}: ${await response.text()}`);
+  }
+}
+
+async function checkContentQueue() {
+  const { rows } = await getContentDbPool().query(
+    `SELECT platform, count(*) AS cnt
+     FROM scheduled_posts
+     WHERE status IN ('pending', 'approved')
+     GROUP BY platform`
+  );
+  const counts = Object.fromEntries(rows.map((r) => [r.platform, Number(r.cnt)]));
+  const low = QUEUE_PLATFORMS.filter((p) => (counts[p] || 0) < QUEUE_LOW_THRESHOLD);
+
+  if (low.length === 0) return { ok: true, low: [] };
+
+  const lines = low.map((p) => `— ${p}: осталось ${counts[p] || 0} в очереди`);
+  const text =
+    `⚠️ Контент заканчивается\n\n` +
+    lines.join('\n') +
+    `\n\nПора готовить новую партию (2-3 недели вперёд), иначе публикации на этих площадках остановятся.`;
+
+  try {
+    await sendMaxAlert(text);
+  } catch (err) {
+    console.error('Не удалось отправить предупреждение о пустой очереди в MAX:', err.message);
+  }
+  return { ok: true, low };
+}
+
 app.get('/cron/daily-report', async (req, res) => {
   if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
     return res.status(403).send('Forbidden');
@@ -281,7 +342,11 @@ app.get('/cron/daily-report', async (req, res) => {
           return { sent: false, error: err.message };
         });
     }
-    res.json({ ok: true, ...result, backup });
+    const queue = await checkContentQueue().catch((err) => {
+      console.error('Ошибка проверки очереди контента:', err.message);
+      return { ok: false, error: err.message };
+    });
+    res.json({ ok: true, ...result, backup, queue });
   } catch (err) {
     console.error('Ошибка формирования ежедневного отчёта:', err.message);
     res.status(500).json({ ok: false, error: err.message });
@@ -360,6 +425,20 @@ app.get('/cron/scheduled-publish', async (req, res) => {
     hadError = true;
     console.error('Ошибка автопубликации (VK):', err.message);
     results.push({ platform: 'vk', ok: false, error: err.message });
+  }
+  try {
+    results.push(...(await processDueTelegramChannelPosts(bot)));
+  } catch (err) {
+    hadError = true;
+    console.error('Ошибка автопубликации (Telegram-канал):', err.message);
+    results.push({ platform: 'telegram_channel', ok: false, error: err.message });
+  }
+  try {
+    results.push(...(await processDueOkPosts(bot)));
+  } catch (err) {
+    hadError = true;
+    console.error('Ошибка автопубликации (ОК):', err.message);
+    results.push({ platform: 'ok', ok: false, error: err.message });
   }
   try {
     results.push(...(await sendDueDeleteReminders(bot, 'instagram')));
