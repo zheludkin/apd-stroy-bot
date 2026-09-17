@@ -140,7 +140,7 @@ bot.action('about', async (ctx) => {
 bot.action('catalog', async (ctx) => {
   await ctx.answerCbQuery().catch(() => {});
   for (const project of PROJECTS) {
-    const caption = `${project.title}\nПлощадь: ${project.area}\nЦена: ${project.price}`;
+    const caption = `${project.title}\nПлощадь: ${project.area}\nЦена: ${project.price}\n\nПодробнее: апд59.рф`;
     await ctx.replyWithMediaGroup([
       { type: 'photo', media: { source: fs.createReadStream(project.exterior) }, caption },
       { type: 'photo', media: { source: fs.createReadStream(project.plan) } },
