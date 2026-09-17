@@ -19,6 +19,7 @@ const { processDuePosts: processDueYouTubePosts } = require('./lib/youtubePublis
 const { processDuePosts: processDueVkPosts } = require('./lib/vkPublish');
 const { processDuePosts: processDueTelegramChannelPosts } = require('./lib/telegramChannelPublish');
 const { processDuePosts: processDueOkPosts } = require('./lib/okPublish');
+const { processDuePosts: processDueMaxChannelPosts } = require('./lib/maxChannelPublish');
 const { upsertStage, getByTelegramMessage, getAwaitingReview, getPipelineRow } = require('./lib/contentPipeline');
 const { sendDueDeleteReminders } = require('./lib/deleteReminders');
 const {
@@ -275,7 +276,7 @@ function isBackupDueToday() {
 // т.к. platform-api2.max.ru доступен с Timeweb напрямую, а api.telegram.org —
 // нет (или ненадёжно). Требует NODE_EXTRA_CA_CERTS (см. certs/russian_trusted_ca_bundle.crt).
 const QUEUE_LOW_THRESHOLD = 3;
-const QUEUE_PLATFORMS = ['instagram', 'youtube', 'vk', 'ok', 'telegram_channel'];
+const QUEUE_PLATFORMS = ['instagram', 'youtube', 'vk', 'ok', 'telegram_channel', 'max_channel'];
 let contentDbPool = null;
 
 function getContentDbPool() {
@@ -439,6 +440,13 @@ app.get('/cron/scheduled-publish', async (req, res) => {
     hadError = true;
     console.error('Ошибка автопубликации (ОК):', err.message);
     results.push({ platform: 'ok', ok: false, error: err.message });
+  }
+  try {
+    results.push(...(await processDueMaxChannelPosts()));
+  } catch (err) {
+    hadError = true;
+    console.error('Ошибка автопубликации (MAX-канал):', err.message);
+    results.push({ platform: 'max_channel', ok: false, error: err.message });
   }
   try {
     results.push(...(await sendDueDeleteReminders(bot, 'instagram')));
