@@ -43,7 +43,11 @@ function slotDate(dayOffset, slotName) {
 // 'max_channel' — платформенная строка, которую фильтрует getDuePosts(5, 'max_channel')
 // в lib/maxChannelPublish.js; 'max' здесь не работает (баг найден 19.09.2026 —
 // эпизоды 1-2 зависли в MAX со статусом 'pending' навсегда, воркер их не видел).
-const PLATFORMS = ['instagram', 'youtube', 'ok', 'max_channel'];
+// 'telegram_channel' — забыт в первой версии этого скрипта (баг найден
+// 19.09.2026 по вопросу пользователя "а в тг канале появится?") — эп.1-4
+// вообще не были поставлены на эту площадку, добавлено сюда задним числом
+// через отдельный docтёр-скрипт (см. историю сессии), на будущее уже входит.
+const PLATFORMS = ['instagram', 'youtube', 'ok', 'max_channel', 'telegram_channel'];
 
 // dayOffset: 0 = сегодня, 1 = завтра, ...
 // slotName: 'slot1320' | 'slot1820'
