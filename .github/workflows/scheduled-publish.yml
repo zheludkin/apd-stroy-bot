@@ -2,7 +2,7 @@ name: Scheduled Instagram publish
 
 on:
   schedule:
-    - cron: '7,37 * * * *'
+    - cron: '7,10,37,50 * * * *'  # 10 и 50 — под слоты серии C 8:50/13:10/17:50 Пермь
   workflow_dispatch: {}
 
 jobs:
