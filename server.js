@@ -400,10 +400,7 @@ app.get('/cron/debug-net', async (req, res) => {
   res.json(out);
 });
 
-app.get('/cron/scheduled-publish', async (req, res) => {
-  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
-    return res.status(403).send('Forbidden');
-  }
+async function runScheduledPublish() {
   const results = [];
   let hadError = false;
   try {
@@ -455,8 +452,38 @@ app.get('/cron/scheduled-publish', async (req, res) => {
     console.error('Ошибка напоминаний об удалении (Instagram):', err.message);
     results.push({ platform: 'instagram', task: 'delete-reminder', ok: false, error: err.message });
   }
-  res.status(hadError ? 500 : 200).json({ ok: !hadError, results });
+  return { hadError, results };
+}
+
+// GitHub Actions по расписанию (7,10,37,50 * * * *) в часы нагрузки пропускает запуски
+// (24.09.2026 с 18:30 до 23:10 Пермь был ровно один запуск) — публикации опаздывали на часы.
+// Поэтому сервер сам проверяет очередь каждые 5 минут; GitHub остаётся резервным будильником.
+// Параллельные запуски не задвоят пост: getDuePosts атомарно забирает строки (FOR UPDATE SKIP LOCKED),
+// а флаг ниже не даёт внутреннему таймеру и эндпоинту идти одновременно в одном процессе.
+let publishRunning = false;
+async function runScheduledPublishOnce() {
+  if (publishRunning) return null;
+  publishRunning = true;
+  try {
+    return await runScheduledPublish();
+  } finally {
+    publishRunning = false;
+  }
+}
+
+app.get('/cron/scheduled-publish', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.query.secret !== process.env.CRON_SECRET) {
+    return res.status(403).send('Forbidden');
+  }
+  const out = await runScheduledPublishOnce();
+  if (!out) return res.status(202).json({ ok: true, skipped: 'already running' });
+  res.status(out.hadError ? 500 : 200).json({ ok: !out.hadError, results: out.results });
 });
+
+setInterval(() => {
+  runScheduledPublishOnce().catch((err) => console.error('Внутренний таймер автопубликации:', err.message));
+}, 5 * 60 * 1000);
+
 
 const PORT = process.env.PORT || 3000;
 
