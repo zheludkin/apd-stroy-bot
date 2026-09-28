@@ -425,7 +425,10 @@ async function runScheduledPublish() {
     results.push({ platform: 'vk', ok: false, error: err.message });
   }
   try {
-    results.push(...(await processDueTelegramChannelPosts(bot)));
+    // 28.09.2026: с Timeweb api.telegram.org снова недоступен («fetch failed»), а у Postproxy
+    // кончился лимит тарифа — все посты канала с 26.09 падали. При TELEGRAM_CHANNEL_LOCAL_RELAY=1
+    // сервер канал не трогает, посты публикует local_publish_relay.js с ноутбука (раз в час).
+    if (process.env.TELEGRAM_CHANNEL_LOCAL_RELAY !== '1') results.push(...(await processDueTelegramChannelPosts(bot)));
   } catch (err) {
     hadError = true;
     console.error('Ошибка автопубликации (Telegram-канал):', err.message);
