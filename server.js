@@ -12,6 +12,7 @@ const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const leadForm = require('./scenes/leadForm');
 const smetaWizard = require('./scenes/smetaWizard');
 const { sendDailyReport } = require('./lib/report');
+const { sendPublishReport } = require('./lib/publishReport');
 const { sendBackupToTelegram } = require('./lib/backup');
 const { PROJECTS } = require('./lib/projects');
 const { processDuePosts } = require('./lib/instagramPublish');
@@ -347,7 +348,11 @@ app.get('/cron/daily-report', async (req, res) => {
       console.error('Ошибка проверки очереди контента:', err.message);
       return { ok: false, error: err.message };
     });
-    res.json({ ok: true, ...result, backup, queue });
+    const publications = await sendPublishReport(bot).catch((err) => {
+      console.error('Ошибка отправки сводки публикаций:', err.message);
+      return { sent: false, error: err.message };
+    });
+    res.json({ ok: true, ...result, backup, queue, publications });
   } catch (err) {
     console.error('Ошибка формирования ежедневного отчёта:', err.message);
     res.status(500).json({ ok: false, error: err.message });
